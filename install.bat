@@ -1,1 +1,1 @@
-powershell install.ps1
+powershell "%~dp0install.ps1"
