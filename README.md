@@ -1,76 +1,76 @@
-# YggFW — лёгкий фильтр входящих соединений для сети Yggdrasil под Windows
+# YggFW — Lightweight Inbound Connection Filter for Yggdrasil Network on Windows
 
-**Версия:** 11 &nbsp;|&nbsp; **Язык:** C &nbsp;|&nbsp; **Платформа:** Windows x64  
-**Зависимость:** [WinDivert](https://reqrypt.org/windivert.html)
-
----
-
-## Кому это нужно, а кому — нет
-
-Если вы работаете под **Linux** — смело закрывайте этот документ. На Linux описанная ниже проблема отсутствует в принципе: подсистема netfilter корректно обрабатывает туннельные интерфейсы, и никакой дополнительной защиты не требуется.
-
-Если же вы под **Windows** и используете сеть Yggdrasil — читайте дальше.
+**Version:** 11 &nbsp;|&nbsp; **Language:** C &nbsp;|&nbsp; **Platform:** Windows x64  
+**Dependency:** [WinDivert](https://reqrypt.org/windivert.html)
 
 ---
 
-## О чём вообще речь
+## Who Needs This — And Who Doesn't
 
-YggFW — это небольшая программа-фильтр для входящих IPv6-соединений под Windows. Она создавалась специально для сети Yggdrasil, однако без каких-либо изменений подойдёт для любого IPv6-интерфейса.
+If you're running **Linux** — close this document with peace of mind. The problem described below simply doesn't exist on Linux: the netfilter subsystem handles tunnel interfaces correctly, and no additional protection is needed.
 
-Программа работает как Windows-сервис в фоновом режиме, незаметно для пользователя, и перехватывает входящие пакеты ещё до того, как они доберутся до встроенного брандмауэра Windows.
-
----
-
-## Проблема: почему стандартной защиты не хватает
-
-Сеть Yggdrasil работает через виртуальный сетевой интерфейс — программный туннель, который выглядит для Windows не как привычная сетевая карта, а как особый программный адаптер.
-
-Встроенный брандмауэр Windows (Windows Defender Firewall) умеет блокировать нежелательные входящие соединения на обычных интерфейсах — Ethernet, Wi-Fi, VPN. Но с туннельными интерфейсами типа Yggdrasil происходит нечто неожиданное: брандмауэр не применяет к ним политику «блокировать всё неизвестное» автоматически. Трафик приходит через драйвер туннеля напрямую, и Windows воспринимает это как «локальную доставку», не требующую фильтрации по умолчанию.
-
-**Итог.**
-
-Узел в сети Yggdrasil под Windows фактически открыт для входящих соединений со всей сети — дефолтная блокировка входящих соединений к нему не применяется. Поэтому в Windows Defender Firewall нужно вручную создать правило «блокировать всё». Однако после такого правила невозможно создать из него исключения, задуманные для разрешения соединений с доверенных адресов.
-
-Казалось бы, выход прост: создать в брандмауэре правило «заблокировать всё из Yggdrasil», а затем добавить исключения для нужных адресов. Но здесь возникает вторая проблема. В Windows Defender Firewall блокирующие правила имеют **приоритет** над разрешающими, если оба правила относятся к одному и тому же трафику. Иными словами, широкое правило «блокировать» отменяет более узкое правило «разрешить», даже если то было создано раньше.
-
-Таким образом, стандартными средствами защитить сеть Yggdrasil под Windows и одновременно оставить доступ для доверенных адресов — не получится.
+If you're on **Windows** and you use the Yggdrasil network — read on.
 
 ---
 
-## Как работает YggFW
+## What This Is About
 
-Представьте, что ваш компьютер — это дом. Сеть — это улица, по которой приходят гости. Тогда Windows Defender Firewall — это дверь вашего дома. Проблема в том, что дверь в случае с Yggdrasil оказывается открытой по умолчанию, а замок на ней работает непредсказуемо.
+YggFW is a small filter program for inbound IPv6 connections on Windows. It was created specifically for the Yggdrasil network, but works equally well with any IPv6 interface without any modifications.
 
-**YggFW — это ворота в заборе вокруг вашего участка.** Они стоят перед домом, ближе к улице. Гость сначала должен пройти через ворота, и лишь потом — подойти к двери дома. Если ворота закрыты — до двери он просто не доберётся.
-
-Технически: YggFW использует библиотеку WinDivert, которая перехватывает пакеты на уровне сетевого стека Windows ещё до того, как они попадут в Windows Defender Firewall. Это значит, что заблокированный пакет никогда не дойдёт до брандмауэра вообще — он будет отброшен на самом раннем этапе.
-
-Программа поддерживает:
-- блокировку целых подсетей IPv6 (например, всего диапазона `200::/7`)
-- разрешение доступа для конкретных адресов или подсетей
-- разрешение доступа к конкретным портам (TCP и UDP)
-- stateful-фильтрацию (conntrack): ответный трафик на ваши исходящие запросы пропускается автоматически
-- запись журнала в файл с ротацией по времени
-- работу в виде Windows-сервиса без участия пользователя
+The program runs as a Windows service silently in the background, invisible to the user, and intercepts inbound packets before they ever reach the built-in Windows Firewall.
 
 ---
 
-## Установка
+## The Problem: Why Standard Protection Isn't Enough
 
-**1.** Создайте папку `C:\Bin\YggFW\` и скопируйте в неё следующие файлы:
+The Yggdrasil network operates through a virtual network interface — a software tunnel that Windows sees not as a regular network adapter, but as a special software-defined adapter.
+
+The built-in Windows Defender Firewall is quite good at blocking unwanted inbound connections on standard interfaces — Ethernet, Wi-Fi, VPN. But with tunnel-type interfaces like Yggdrasil, something unexpected happens: the firewall does not automatically apply its "block all unknown" policy to them. Traffic arrives through the tunnel driver directly, and Windows treats this as "local delivery" that doesn't require default filtering.
+
+**The result.**
+
+A Yggdrasil node on Windows is essentially open to inbound connections from the entire network — the default inbound block simply doesn't apply to it. To fix this, you need to manually create a "block all" rule in Windows Defender Firewall. However, once such a rule is in place, it becomes impossible to create exceptions for trusted addresses.
+
+It might seem the solution is straightforward: create a "block everything from Yggdrasil" rule in the firewall, then add exceptions for the addresses you trust. But here a second problem appears. In Windows Defender Firewall, blocking rules take **priority** over allowing rules when both apply to the same traffic. In other words, a broad "block" rule overrides a narrower "allow" rule, even if the allow rule was created first.
+
+The conclusion: using standard Windows tools alone, you cannot protect your Yggdrasil node while simultaneously keeping access open for trusted addresses.
+
+---
+
+## How YggFW Works
+
+Think of your computer as a house. The network is the street where visitors arrive. Windows Defender Firewall is the front door of your home. The problem is that this door, in the case of Yggdrasil, is unlocked by default — and the lock behaves unpredictably even when you try to fix it.
+
+**YggFW is the gate in the fence around your property.** It stands between the street and your front door. A visitor must pass through the gate first, and only then can they approach the door. If the gate is closed — they never even reach the door.
+
+Technically: YggFW uses the WinDivert library, which intercepts packets at the Windows network stack level before they reach Windows Defender Firewall at all. This means a blocked packet is dropped at the earliest possible stage — the firewall never even sees it.
+
+The program supports:
+- blocking entire IPv6 subnets (e.g. the entire `200::/7` range)
+- allowing access for specific addresses or subnets
+- allowing access to specific ports (TCP and UDP)
+- stateful filtering (conntrack): reply traffic for your outbound requests is allowed automatically
+- writing logs to files with time-based rotation
+- running as a Windows service without any user interaction
+
+---
+
+## Installation
+
+**1.** Create the folder `C:\Bin\YggFW\` and copy the following files into it:
 
 ```
 C:\Bin\YggFW\
 ├── yggfw.exe
 ├── WinDivert.dll
 ├── WinDivert64.sys
-├── settings.txt      (создастся автоматически при первом запуске)
-└── rules.txt         (создастся автоматически при первом запуске)
+├── settings.txt      (created automatically on first run)
+└── rules.txt         (created automatically on first run)
 ```
 
-**2.** Убедитесь, что у вас есть права администратора.
+**2.** Make sure you have administrator rights.
 
-**3.** Откройте командную строку от имени администратора и выполните:
+**3.** Open a command prompt as Administrator and run:
 
 ```
 sc create YggFW binPath= "C:\Bin\YggFW\yggfw.exe" start= auto
@@ -78,155 +78,155 @@ sc description YggFW "Lite Yggdrasil (IPv6) Firewall"
 sc start YggFW
 ```
 
-**4.** Проверьте, что сервис запущен:
+**4.** Verify the service is running:
 
 ```
 sc query YggFW
 ```
 
-Вы должны увидеть строку `STATE : 4  RUNNING`.
+You should see the line `STATE : 4  RUNNING`.
 
-Для остановки и удаления сервиса:
+To stop and remove the service:
 
 ```
 sc stop YggFW
 sc delete YggFW
 ```
 
-> При первом запуске в папке `C:\Bin\YggFW\` автоматически создадутся файлы `settings.txt` и `rules.txt` с настройками по умолчанию, а также папка `Logs\` для журналов.
+> On first run, the files `settings.txt` and `rules.txt` will be created automatically in `C:\Bin\YggFW\` with default settings, along with a `Logs\` folder for log files.
 
 ---
 
-## Настройки: файл settings.txt
+## Settings: the settings.txt file
 
-Файл читается при каждом запуске программы. Строки, начинающиеся с `#`, и пустые строки игнорируются. Формат: `ключ=значение`.
+This file is read every time the program starts. Lines beginning with `#` and empty lines are ignored. Format: `key=value`.
 
-### Основные параметры
+### Main Parameters
 
-| Параметр | Значение по умолч. | Описание |
+| Parameter | Default | Description |
 |---|---|---|
-| `loglevel` | `0` | Уровень вывода на экран: `0`=тишина, `1`=только блокировки, `2`=блокировки+разрешения, `3`=всё, `4`=отладка. При работе как сервис принудительно `0`. |
-| `response` | `0` | `0`=молча выбросить пакет, `1`=отправить уведомление об отказе (TCP RST / ICMPv6 Unreachable). Значение `0` предпочтительно. |
-| `conntrack` | `1` | `1`=включена stateful-фильтрация (ответный трафик пропускается автоматически), `0`=выключена. |
-| `ct_tcp_timeout` | `120` | Время жизни автоматического разрешения для TCP-соединения (секунды). |
-| `ct_udp_timeout` | `30` | Время жизни для UDP (секунды). |
-| `ct_icmpv6_timeout` | `10` | Время жизни для ICMPv6 echo/ping (секунды). |
+| `loglevel` | `0` | Console output level: `0`=silence, `1`=blocked only, `2`=blocked+allowed, `3`=everything, `4`=debug. Forced to `0` when running as a service. |
+| `response` | `0` | `0`=silently drop the packet, `1`=send a rejection notice (TCP RST / ICMPv6 Unreachable). Value `0` is preferred. |
+| `conntrack` | `1` | `1`=stateful filtering enabled (reply traffic passes automatically), `0`=disabled. |
+| `ct_tcp_timeout` | `120` | Lifetime of an automatic allow rule for TCP connections (seconds). |
+| `ct_udp_timeout` | `30` | Lifetime for UDP (seconds). |
+| `ct_icmpv6_timeout` | `10` | Lifetime for ICMPv6 echo/ping (seconds). |
 
-### Журналирование в файл
+### File Logging
 
-| Параметр | Значение по умолч. | Описание |
+| Parameter | Default | Description |
 |---|---|---|
-| `DumpLevel` | `1` | `0`=не писать, `1`=только блокировки, `2`=блокировки+разрешения, `3`=всё. |
-| `DumpFile` | `.\Logs\yggfw-%Y-%m-%d.log` | Путь к файлу журнала. Поддерживает маски `%Y %m %d %H`. Папки создаются автоматически. |
-| `DumpStart` | `D` | Период ротации: `H`=час, `D`=день, `W`=неделя, `M`=месяц, `Y`=год. |
+| `DumpLevel` | `1` | `0`=off, `1`=blocked only, `2`=blocked+allowed, `3`=everything. |
+| `DumpFile` | `.\Logs\yggfw-%Y-%m-%d.log` | Log file path. Supports strftime masks `%Y %m %d %H`. Folders are created automatically. |
+| `DumpStart` | `D` | Rotation period: `H`=hour, `D`=day, `W`=week, `M`=month, `Y`=year. |
 
-Пример строки в журнале:
+Example log line:
 
 ```
 2026-04-04 21:04:15.602 -T [316:c51a::]:80 -> [227:3f13::]:5297 [FIN][ACK] {60/0} @ DENY 200::/7 any * -> *
 ```
 
-Расшифровка первых двух символов: `-T` = заблокирован TCP, `+T` = разрешён TCP, `>U` = разрешён UDP через conntrack, `.I` = ICMPv6 по умолчанию.
+First two characters: `-T`=blocked TCP, `+T`=allowed TCP, `>U`=allowed UDP via conntrack, `.I`=ICMPv6 default allow.
 
-### Флаги детализации (только при loglevel=4)
+### Verbosity Flags (loglevel=4 only)
 
-| Параметр | По умолч. | Описание |
+| Parameter | Default | Description |
 |---|---|---|
-| `LogPacketNumber` | `1` | Нумерация пакетов |
-| `LogStats` | `1` | Счётчики: всего / разрешено / заблокировано |
-| `LogMatches` | `1` | Какое правило сработало |
-| `LogOutcoming` | `1` | Исходящие пакеты |
-| `LogConntrack` | `1` | События conntrack |
+| `LogPacketNumber` | `1` | Packet numbering |
+| `LogStats` | `1` | Counters: total / allowed / blocked |
+| `LogMatches` | `1` | Which rule matched |
+| `LogOutcoming` | `1` | Outbound packets |
+| `LogConntrack` | `1` | Conntrack events |
 
 ---
 
-## Правила фильтрации: файл rules.txt
+## Filtering Rules: the rules.txt file
 
-Это главный файл настройки. Здесь вы описываете, кого пускать, а кого — нет.
+This is the main configuration file. Here you describe who to let in and who to block.
 
-Правила проверяются **сверху вниз**. Срабатывает **первое совпавшее** правило. Если ни одно не подошло — пакет пропускается (разрешён по умолчанию).
+Rules are checked **top to bottom**. The **first matching rule** wins. If no rule matches — the packet is allowed (default allow).
 
-### Формат правила
-
-```
-<действие> <адрес_источника> <протокол> [<порт_источника> -> <порт_назначения>]
-```
-
-**Действие (action):**
-- `ALLOW` — пропустить
-- `DENY` — заблокировать
-
-**Адрес источника (src_addr):**
-- `*` — любой адрес
-- `200::1` — конкретный IPv6-адрес
-- `200::/7` — диапазон адресов (подсеть)
-- `325:62b8:f811:b821::/64` — более узкая подсеть
-
-**Протокол (proto):**
-- `tcp` — только TCP
-- `udp` — только UDP
-- `icmpv6` — только ICMPv6 (ping и другие). Порты не указываются.
-- `any` — TCP, UDP и ICMPv6 вместе
-
-**Порты:**
-- `* -> *` — любой:любой
-- `* -> 443` — любой источник, порт назначения 443
-- `53 -> *` — источник порт 53 (ответ DNS-сервера), любой назначения
-
-### Примеры правил
+### Rule Format
 
 ```
-# Доверенный хост — разрешить всё без ограничений
+<action> <source_address> <protocol> [<source_port> -> <destination_port>]
+```
+
+**Action:**
+- `ALLOW` — let through
+- `DENY` — block
+
+**Source address (src_addr):**
+- `*` — any address
+- `200::1` — a specific IPv6 address
+- `200::/7` — an address range (subnet)
+- `325:62b8:f811:b821::/64` — a narrower subnet
+
+**Protocol (proto):**
+- `tcp` — TCP only
+- `udp` — UDP only
+- `icmpv6` — ICMPv6 only (ping and others). No ports specified.
+- `any` — TCP, UDP and ICMPv6 together
+
+**Ports:**
+- `* -> *` — any source, any destination
+- `* -> 443` — any source, destination port 443
+- `53 -> *` — source port 53 (DNS server reply), any destination
+
+### Example Rules
+
+```
+# Trusted host — allow everything without restrictions
 ALLOW 225:62b8:f811:b821:6c6b:8fcc:c01b:425c  any  * -> *
 
-# Доверенная подсеть — например, ваши устройства
+# Trusted subnet — for example, your own devices
 ALLOW 325:62b8:f811:b821::/64  any  * -> *
 
-# DNS-серверы — разрешить только их ответы (они отвечают с порта 53)
+# DNS servers — allow only their replies (they respond from port 53)
 ALLOW 308:84:68:55::   udp  53 -> *
 ALLOW 308:25:40:bd::   udp  53 -> *
 
-# Разрешить входящие соединения на веб-сервер
+# Allow inbound connections to a web server
 ALLOW *  tcp  * -> 80
 ALLOW *  tcp  * -> 443
 
-# Разрешить ping (иначе вас нельзя будет пропинговать)
+# Allow ping (otherwise you can't be pinged)
 ALLOW *  icmpv6
 
-# Заблокировать весь остальной трафик из Yggdrasil
+# Block all remaining traffic from Yggdrasil
 DENY  200::/7   any  * -> *
 DENY  300::/64  any  * -> *
 ```
 
-### Как работает conntrack на практике
+### How Conntrack Works in Practice
 
-Допустим, у вас в `rules.txt` стоит только блокировка всего диапазона `200::/7`. Вы открываете браузер и заходите на сайт в сети Yggdrasil. Ваш компьютер отправляет TCP-запрос на сервер сайта. YggFW видит этот исходящий запрос и автоматически создаёт временное разрешение: «пропустить ответный TCP-пакет от этого сервера на этот порт в течение 120 секунд». Когда сервер отвечает — пакет проходит. После закрытия вкладки соединение закрывается, временное разрешение удаляется.
+Suppose your `rules.txt` only has a block rule for the entire `200::/7` range. You open a browser and visit a site on the Yggdrasil network. Your computer sends a TCP request to the site's server. YggFW sees this outbound request and automatically creates a temporary allow rule: "let through the TCP reply from this server to this port for 120 seconds." When the server replies — the packet passes through. After you close the tab, the connection closes, and the temporary rule is removed.
 
-Без conntrack вы бы не смогли получить никакого ответа, даже если сами инициировали соединение.
+Without conntrack, you would receive no reply at all, even for connections you initiated yourself.
 
-### Минимальная конфигурация
+### Minimal Configuration
 
-Если вам всего лишь необходимо защитить свой компьютер от нежелательных соединений и не нужно давать доступ для разрешённых адресов, просто добавьте в `rules.txt` два правила — этого достаточно:
+If you simply want to protect your computer from unwanted connections and don't need to allow access from specific trusted addresses, just add two rules to `rules.txt` — that's all you need:
 
 ```
 DENY  200::/7   any  * -> *
 DENY  300::/64  any  * -> *
 ```
 
-Conntrack при этом обеспечит нормальную работу исходящих соединений.
+Conntrack will ensure your outbound connections continue to work normally.
 
 ---
 
-## Технические сведения
+## Technical Notes
 
 | | |
 |---|---|
-| Язык | C (VS 2022/2026, x64) |
-| Зависимость | WinDivert 2.x |
-| Платформа | Windows 10/11, Server 2019/2022, x64 |
-| Права | Администратор (для установки WinDivert-драйвера) |
-| Порты | Не открывает никаких портов |
+| Language | C (VS 2022/2026, x64) |
+| Dependency | WinDivert 2.x |
+| Platform | Windows 10/11, Server 2019/2022, x64 |
+| Rights | Administrator (to install the WinDivert driver) |
+| Ports | Opens no ports whatsoever |
 
 ---
 
-*YggFW — лёгкий, прозрачный, надёжный.*
+*YggFW — lightweight, transparent, reliable.*
