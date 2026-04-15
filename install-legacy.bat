@@ -1,0 +1,1 @@
+powershell "%~dp0install-legacy.ps1"
